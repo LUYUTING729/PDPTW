@@ -1,0 +1,14 @@
+{
+  "instanceName": "LR1_10_5",
+  "additionalVehicleNum": 0,
+  "timeLimit": 10000000.0,
+  "resultFolder": ".",
+  "initialSolFiles": [
+    "/home/yutinglu/amdahl/src/data/bks/lr1_10_5.58_59053.68.txt"
+  ],
+  "solverType": "two_index",
+  "freeNodes": true,
+  "freeNodesNum": 400,
+  "freeRouteIndices": [],
+  "pickupNodeNumLimitInRouteForPricingSubProblem":11
+}
