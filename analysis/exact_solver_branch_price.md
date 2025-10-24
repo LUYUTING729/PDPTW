@@ -6,7 +6,7 @@
 
 Branch&Price 主流程由 `SetPartitioning` 类驱动：
 
-1. **初始化与种子列**：解析 JSON 配置、读取实例/BKS/初始解，并从列文件加载历史路径，形成根节点的列池与时间窗参考。`SetPartitioning::init()`、`readStartingRoutes()` 完成这一步。【F:domain/solver/exact/SetPartitioning.h†L61-L310】【F:domain/solver/exact/SetPartitioning.cpp†L6-L57】
+1. **初始化与种子列**：解析 JSON 配置、读取实例/BKS/初始解，并从列文件加载历史路径，形成根节点的列池与时间窗参考。`SetPartitioning::init()`、`readStartingRoutes()` 完成这一步。【F:domain/solver/exact/SetPartitioning.h†L200-L310】【F:domain/solver/exact/SetPartitioning.cpp†L6-L57】
 2. **根节点主问题（RMP）**：`createSP()` 根据当前列池构建放松的集合划分模型，含节点覆盖约束与（可选）车辆数约束。变量为连续型列权重，目标系数来自路线实际成本及罚项。【F:domain/solver/exact/SetPartitioning.cpp†L59-L116】
 3. **求解与提取对偶**：`solveSP()` 调用 Gurobi 求解 RMP，并读取覆盖约束对偶值 `rho_k`，作为定价子问题的节点成本校正。【F:domain/solver/exact/SetPartitioning.h†L92-L108】
 4. **定价子问题**：`solveTwoInd()` 把当前对偶传入二指标模型 `twoIndexFormulationSolveZ()`，求解带对偶调整的最短路（列生成）并返回负 reduced cost 的新路线集合。【F:domain/solver/exact/SetPartitioning.cpp†L119-L171】【F:domain/solver/exact/TwoIndChecker.cpp†L14-L200】
@@ -17,15 +17,15 @@ Branch&Price 主流程由 `SetPartitioning` 类驱动：
 
 ## 阶段 0：初始化与种子列
 
-- `init()` 解析配置文件，载入实例数据、附加车辆数、求解时间上限与初始解路径，并将 BKS 的车辆数作为 `maxRoute` 约束基线。读取的 `latestStartServiceTime` 会写入 `refNodeSericeStartTimes`，供后续列验证使用。【F:domain/solver/exact/SetPartitioning.h†L61-L310】
+- `init()` 解析配置文件，载入实例数据、附加车辆数、求解时间上限与初始解路径，并将 BKS 的车辆数作为 `maxRoute` 约束基线。读取的 `latestStartServiceTime` 会写入 `refNodeSericeStartTimes`，供后续列验证使用。【F:domain/solver/exact/SetPartitioning.h†L200-L310】
 - `readStartingRoutes()` 从列文件逐行解析“Route i : v1 v2 …”格式，按顺序累积弧长并补上回仓成本，同时建立节点到列的关联矩阵 `xy_relate`。随后调用 `validateRoute()` 检查容量、取送顺序、时间窗并返回罚分，将其叠加到列成本上，确保 RMP 目标反映违反约束的代价。【F:domain/solver/exact/SetPartitioning.cpp†L6-L57】【F:domain/solver/exact/SetPartitioning.cpp†L174-L211】
 
 这一阶段的输出是：列池 `routes`、修正后列成本、节点-列关联及参考服务时间，为根节点 RMP 提供初始数据。
 
 ## 阶段 1：根节点主问题构建
 
-- `createSP()` 会清空旧的 Gurobi 模型，重新导入列池。对于每条路线添加连续变量 `y_r ∈ [0,1]`，若当前分支节点尚未固定车辆数（`maxRoute < 0`），则在目标中加上 10000 的大罚项以惩罚新增车辆；否则使用真实路径成本。【F:domain/solver/exact/SetPartitioning.cpp†L59-L99】
-- 仅对需求大于 0 的节点添加覆盖约束 `∑_{r∋i} y_r ≥ 1`，实现列生成框架常见的乘车需求覆盖。若 `maxRoute ≥ 0`，额外增加 `∑_r y_r - s ≤ maxRoute` 并引入带高罚系数的松弛变量 `s`，使得车辆数可被软约束控制，构成常见的分支条件之一。【F:domain/solver/exact/SetPartitioning.cpp†L87-L113】
+- `createSP()` 会清空旧的 Gurobi 模型，重新导入列池。对于每条路线添加连续变量 `y_r ∈ [0,1]`，若当前分支节点尚未固定车辆数（`maxRoute < 0`），则在目标中加上 10000 的大罚项以惩罚新增车辆；否则使用真实路径成本。【F:domain/solver/exact/SetPartitioning.cpp†L63-L85】
+- 对每个节点添加覆盖约束 `∑_{r∋i} y_r ≥ 1`，实现列生成框架常见的乘车需求覆盖。若 `maxRoute ≥ 0`，额外增加 `∑_r y_r - s ≤ maxRoute` 并引入带高罚系数的松弛变量 `s`，使得车辆数可被软约束控制，构成常见的分支条件之一。【F:domain/solver/exact/SetPartitioning.cpp†L87-L113】
 - 模型构建完毕后导出 `rmp.lp`，便于排查根节点或后续分支的列池状态。【F:domain/solver/exact/SetPartitioning.cpp†L114-L115】
 
 ## 阶段 2：求解 RMP 与提取对偶
@@ -42,7 +42,6 @@ Branch&Price 主流程由 `SetPartitioning` 类驱动：
 ### 二指标模型构建
 
 - `twoIndexFormulationSolveZ()` 首先将所有取送节点重编号，建立原始索引与新索引的双向映射，并在初始解的服务时间中提取 `nodeSericeStartTimes`，用于后续的时间窗裁剪与目标调节。【F:domain/solver/exact/TwoIndChecker.cpp†L14-L83】
-- 与 `TwoIndexFormulation.cpp` 不同，`TwoIndChecker` 保留了 `pricingSubProblem` 标记并据此构建单路径的定价模型；`TwoIndexFormulation.cpp` 则会在重编号后将该标志清零，仅用于求解覆盖全部请求的原问题。【F:domain/solver/exact/TwoIndexFormulation.cpp†L193-L232】【F:domain/solver/exact/TwoIndChecker.cpp†L14-L83】
 - 对每条可行弧 `(i,j)` 创建二进制变量 `x_ij`，不可行弧则将上界设为 0。目标系数以距离为主，并对 depot 出入弧施加额外奖励/惩罚，以匹配 RMP 的车辆成本；若 `i=0` 且运行在定价模式，则减去相应的对偶值，实现 reduced cost 计算。【F:domain/solver/exact/TwoIndChecker.cpp†L103-L158】
 - 辅助变量：
   - `z_i` 控制选入路线的取货节点数量，只在定价模式启用。【F:domain/solver/exact/TwoIndChecker.cpp†L160-L169】
