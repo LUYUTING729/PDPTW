@@ -24,11 +24,11 @@
 
 1. 保存问题指针、车辆上限并初始化乘子向量长度为 `nX = vd->nodeList.size()`；
 2. 构造 Gurobi 环境与模型指针，设置列文件路径 `cf`；
-3. 调用私有 `init()`，解析 JSON 配置：
-   - 读取实例名、附加车辆数、时间限制、初始解文件列表等元信息；
+3. 调用头文件末尾内联定义的 `init()`，解析 JSON 配置：
+   - 读取实例名、时间限制、初始解文件列表等元信息并打印日志（`additionalVehicleNum` 虽被读取但当前实现未使用）；
    - 从 `data/instance/` 载入 PDPTW 文本实例，并通过 `ConvertVrpProblem` 构造 `vrpProblem`；
-   - 加载初始解及 BKS，转换为 `VrpSolution`，记录车辆路径数量以更新 `maxRoute`；
-   - 提取初始解各节点的 `latestStartServiceTime`，写入 `refNodeSericeStartTimes` 作为时间窗参考。【F:domain/solver/exact/SetPartitioning.h†L45-L134】
+   - 加载初始解及 BKS，转换为 `VrpSolution`，并以 BKS 的车辆数更新 `maxRoute`；
+   - 提取初始解各节点的 `latestStartServiceTime`，写入 `refNodeSericeStartTimes` 作为时间窗参考。【F:domain/solver/exact/SetPartitioning.h†L61-L310】
 
 初始化阶段会在控制台打印实例信息及初始解质量，以便校验输入。
 
